@@ -7,7 +7,9 @@
 </head>
 <body>
 <p>Liberty settings bridge. This page is opened invisibly by the Liberty HUD mod inside Deadlock's built-in browser.
-It keeps the mod's settings in this browser's own storage on the player's computer and sends nothing anywhere.</p>
+It keeps the mod's settings in this browser's own storage on the player's computer.</p>
+<p>It also counts game launches anonymously (GoatCounter, at most once every 6 hours per player): only the fact that
+a launch happened is sent, no nickname, Steam ID or settings. It sends nothing else anywhere.</p>
 <script>
 // Messages from the mod arrive in the address after "#": {"i": id, "o": "get" | "put", "p": part, "n": parts, "d": text}.
 // Answers go back through the page title: "LIBR:" + {"i": id, "ok": 1, "p": part, "n": parts, "d": text}.
@@ -52,9 +54,25 @@ It keeps the mod's settings in this browser's own storage on the player's comput
     }
   }
 
+  // anonymous launch counter: only "a launch happened", at most once every 6 hours per player;
+  // skipped when the player turned statistics off in the Liberty menu (setting "stats" = "0")
+  function countLaunch() {
+    try {
+      var saved = storageGet();
+      if (saved) { var o = JSON.parse(saved); if (o && o.opts && o.opts.stats === "0") return; }
+      var last = +localStorage.getItem("liberty.counted") || 0, now = Date.now();
+      if (now - last < 6 * 3600 * 1000) return;
+      localStorage.setItem("liberty.counted", String(now));
+      var img = new Image();
+      img.src = "https://liberty-hud.goatcounter.com/count?p=" + encodeURIComponent("/launch") +
+        "&t=" + encodeURIComponent("Liberty launch") + "&rnd=" + Math.random().toString(36).slice(2);
+    } catch (e) { }
+  }
+
   window.addEventListener("hashchange", handle);
   answer({ ready: 1, has: (storageGet() || "").length > 0 ? 1 : 0 });
   handle();
+  countLaunch();
 })();
 </script>
 </body>
