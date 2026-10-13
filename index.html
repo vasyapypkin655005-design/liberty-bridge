@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LIBR:boot</title>
+<meta name="robots" content="noindex">
+</head>
+<body>
+<p>Liberty settings bridge. This page is opened invisibly by the Liberty HUD mod inside Deadlock's built-in browser.
+It keeps the mod's settings in this browser's own storage on the player's computer and sends nothing anywhere.</p>
+<script>
+// Messages from the mod arrive in the address after "#": {"i": id, "o": "get" | "put", "p": part, "n": parts, "d": text}.
+// Answers go back through the page title: "LIBR:" + {"i": id, "ok": 1, "p": part, "n": parts, "d": text}.
+// Long settings travel in parts so a title never gets too long.
+(function () {
+  var KEY = "liberty.settings";
+  var PART = 700;
+  var lastHash = "";
+  var incoming = {};
+
+  function answer(obj) { document.title = "LIBR:" + JSON.stringify(obj); }
+
+  function storageGet() { try { return localStorage.getItem(KEY) || ""; } catch (e) { return null; } }
+  function storageSet(v) { try { localStorage.setItem(KEY, v); return true; } catch (e) { return false; } }
+
+  function handle() {
+    var h = location.hash.slice(1);
+    if (!h || h === lastHash) return;
+    lastHash = h;
+    var m;
+    try { m = JSON.parse(decodeURIComponent(h)); } catch (e) { return; }
+    if (!m || !m.i) return;
+    if (m.o === "get") {
+      var all = storageGet();
+      if (all === null) { answer({ i: m.i, ok: 0, e: "storage unavailable" }); return; }
+      var n = Math.max(1, Math.ceil(all.length / PART)), p = Math.max(0, Math.min(n - 1, m.p | 0));
+      answer({ i: m.i, ok: 1, p: p, n: n, d: all.substr(p * PART, PART) });
+    } else if (m.o === "put") {
+      var key = String(m.k || "");
+      if (!incoming[key] || m.p === 0) incoming[key] = [];
+      incoming[key][m.p | 0] = String(m.d || "");
+      var done = (m.p | 0) === (m.n | 0) - 1;
+      if (done) {
+        var text = incoming[key].join("");
+        delete incoming[key];
+        var ok = false;
+        try { JSON.parse(text); ok = storageSet(text); } catch (e) { ok = false; }
+        answer({ i: m.i, ok: ok ? 1 : 0, p: m.p, n: m.n, saved: ok ? 1 : 0 });
+      } else {
+        answer({ i: m.i, ok: 1, p: m.p, n: m.n });
+      }
+    }
+  }
+
+  window.addEventListener("hashchange", handle);
+  answer({ ready: 1, has: (storageGet() || "").length > 0 ? 1 : 0 });
+  handle();
+})();
+</script>
+</body>
+</html>
